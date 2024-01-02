@@ -1,8 +1,9 @@
 (ns gajbe.handlers
-  (:require [ring.util.http-response :as r]))
+  (:require [gajbe.prikazi :as prikazi]
+            [gajbe.rasclanjivaci :as parsers]
+            [ring.util.http-response :as r]))
 
-(defn display-ads
+(defn prikazi-oglase
   [{_params :params}]
-  (r/ok "This is where ads will show"))
-
-
+  (let [oglasi (parsers/dohvati-oglase)]
+    (r/ok (prikazi/prikaz-oglasa oglasi))))

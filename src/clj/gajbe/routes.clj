@@ -3,5 +3,5 @@
 
 (def routes
   ["/" {}
-   ["" {:get {:handler handlers/display-ads
+   ["" {:get {:handler    handlers/prikazi-oglase
               :parameters {}}}]])

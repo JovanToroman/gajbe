@@ -1,8 +1,16 @@
-{:paths ["src/clj" "src/dev"]
- :deps {ring/ring {:mvn/version "1.4.0"}
-        http-kit/http-kit {:mvn/version "2.5.3"}
+{:paths   ["src/clj" "resources"]
+ :deps    {org.clojure/clojure                 {:mvn/version "1.11.1"}
+           ring/ring                           {:mvn/version "1.4.0"}
         com.taoensso/timbre {:mvn/version "5.2.1"}
         metosin/reitit {:mvn/version "0.5.17"}
         metosin/ring-http-response {:mvn/version "0.9.3"}
         org.clj-commons/hickory {:mvn/version "0.7.3"}
-        clojure.java-time/clojure.java-time {:mvn/version "1.2.0"}}}
+           hiccup/hiccup                       {:mvn/version "1.0.5"}
+           clojure.java-time/clojure.java-time {:mvn/version "1.2.0"}
+           com.draines/postal                  {:mvn/version "2.0.5"}}
+ :aliases {:build  {:extra-paths ["src/build"]
+                    :extra-deps  {io.github.clojure/tools.build {:git/tag "v0.9.6" :git/sha "8e78bcc"}
+                                  org.clj-commons/hickory       {:mvn/version "0.7.3"}}
+                    :ns-default  uberjar}
+           :dev    {:main-opts ["-m" "gajbe.poslovi"]}
+           :worker {:main-opts ["-m" "gajbe.poslovi"]}}}

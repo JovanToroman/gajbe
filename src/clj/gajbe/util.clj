@@ -1,4 +1,5 @@
-(ns gajbe.util)
+(ns gajbe.util
+  (:import (java.security MessageDigest)))
 
 (defmacro -m
   [& args]
@@ -6,3 +7,12 @@
             (assoc m (keyword v) v))
     {}
     args))
+
+(defn ^String md5
+  [object]
+  (->> object
+    str
+    .getBytes
+    (.digest (MessageDigest/getInstance "MD5"))
+    (BigInteger. 1)
+    (format "%032x")))
