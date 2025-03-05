@@ -9,10 +9,13 @@
   (:import (java.time ZoneId))
   (:gen-class))
 
+(def broj-strana 10)
+
 (defprotocol IzvuciOglase
   (dohvati-stranicu [this url] "prihvata url i vraća html stranicu")
   (izvuci-oglase [this] "uzima stranicu i vraca kolekciju mapa, od kojih je svaka jedan oglas")
-  (obradi-oglas [this oglas] "uzima hickory podatke jednog oglasa i vraca njegove elemente"))
+  (obradi-oglas [this oglas] "uzima hickory podatke jednog oglasa i vraca njegove elemente")
+  (ustranici-urlove [this broj-strana] "od jednog url-a pravi `broj-strana` urlova tako što uzima sledeću stranu"))
 
 (defn datum-string->instant [^String datum ^String format]
   (let [formater        (jt/formatter format)
@@ -43,12 +46,20 @@
 
 (deftype ProcesorKP [urlovi imena-domena]
   IzvuciOglase
+  (ustranici-urlove [_this broj-strana]
+    (mapcat (fn [url]
+              (conj
+                (map (fn [strana]
+                       (str url "&page=" strana))
+                  (range 2 (inc broj-strana)))
+                url))
+      (:KP urlovi)))
   (dohvati-stranicu [_this url]
     (slurp url))
   (izvuci-oglase [this]
     (let [oglasi (mapcat (fn [url]
                            (hs/select (hs/tag :article) (h/as-hickory (h/parse (dohvati-stranicu this url)))))
-                   (:KP urlovi))]
+                   (ustranici-urlove this broj-strana))]
       (sequence (keep (partial obradi-oglas this)) oglasi)))
   (obradi-oglas [_this oglas]
     (let [[{{link-oglasa :href} :attrs}] (hs/select (hs/class :Link_link__J4Qd8) oglas)
@@ -72,13 +83,21 @@
 
 (deftype ProcesorHaloOglasi [urlovi imena-domena]
   IzvuciOglase
+  (ustranici-urlove [_this broj-strana]
+    (mapcat (fn [url]
+              (conj
+                (map (fn [strana]
+                       (str url "&page=" strana))
+                  (range 2 (inc broj-strana)))
+                url))
+      (:halo-oglasi urlovi)))
   (dohvati-stranicu [_this url]
     (slurp url))
   (izvuci-oglase [this]
     (let [oglasi (mapcat (fn [url]
                            (hs/select (hs/and (hs/class :product-item) (hs/el-not (hs/class :banner-list)))
                              (h/as-hickory (h/parse (dohvati-stranicu this url)))))
-                   (:halo-oglasi urlovi))]
+                   (ustranici-urlove this broj-strana))]
       (map (partial obradi-oglas this) oglasi)))
   (obradi-oglas [_this oglas]
     (let [[{[naslov] :content {link-oglasa :href} :attrs}] (hs/select (hs/child (hs/class :product-title) (hs/tag :a))
@@ -98,12 +117,20 @@
 
 (deftype ProcesorBeogradskiOglasi [urlovi imena-domena]
   IzvuciOglase
+  (ustranici-urlove [_this broj-strana]
+    (mapcat (fn [url]
+              (conj
+                (map (fn [strana]
+                       (str url "&page=" strana))
+                  (range 2 (inc broj-strana)))
+                url))
+      (:beogradski-oglasi urlovi)))
   (dohvati-stranicu [_this url]
     (slurp url))
   (izvuci-oglase [this]
     (let [oglasi (mapcat (fn [url]
                            (hs/select (hs/class :classified) (h/as-hickory (h/parse (dohvati-stranicu this url)))))
-                   (:beogradski-oglasi urlovi))]
+                   (ustranici-urlove this broj-strana))]
       (map (partial obradi-oglas this) oglasi)))
   (obradi-oglas [_this oglas]
     (let [[{[naslov] :content}] (hs/select (hs/child (hs/class :title) (hs/tag :h3)) oglas)
@@ -123,6 +150,14 @@
 
 (deftype Procesor4zida [urlovi imena-domena]
   IzvuciOglase
+  (ustranici-urlove [_this broj-strana]
+    (mapcat (fn [url]
+              (conj
+                (map (fn [strana]
+                       (str url "&strana=" strana))
+                  (range 2 (inc broj-strana)))
+                url))
+      (:4zida urlovi)))
   (dohvati-stranicu [_this url]
     (slurp url))
   (izvuci-oglase [this]
@@ -136,7 +171,7 @@
           oglasi (mapcat (fn [url]
                            (sequence xform (hs/select (hs/and (hs/tag :script) (hs/attr :type #{"application/ld+json"}))
                                              (h/as-hickory (h/parse (dohvati-stranicu this url))))))
-                   (:4zida urlovi))]
+                   (ustranici-urlove this broj-strana))]
       (map (partial obradi-oglas this) oglasi)))
   (obradi-oglas [_this oglas]
     (let [[naslov mesto cena kvadratura] (str/split (first oglas) #", ")
@@ -181,7 +216,8 @@
 
 (comment
   (count (dohvati-oglase))
-  (izvuci-oglase (->ProcesorKP url/urlovi-oglasa-kuce url/imena-domena))
+  (slurp "https://www.4zida.rs/prodaja-kuca/beograd?skuplje_od=50000eur&jeftinije_od=151000eur&vece_od=80m2&mesto=stara-pazova")
+  (ustranici-urlove (->ProcesorKP url/urlovi-oglasa-kuce url/imena-domena) 10)
   (let [xform  (comp
                  (map (fn [element]
                         (update element :content (fn [[content]]

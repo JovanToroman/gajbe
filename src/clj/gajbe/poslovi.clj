@@ -23,7 +23,7 @@
         set-svih-oglasa    (if fajl-postoji?
                              (edn/read-string (slurp put-do-seta-svih-oglasa-kuce))
                              #{})
-        novi-oglasi        (remove (comp set-svih-oglasa :hes) oglasi-sa-hesevima)]
+        novi-oglasi        (set (remove (comp set-svih-oglasa :hes) oglasi-sa-hesevima))]
     (log/info "Proveravam oglase za kuće")
     (when (seq novi-oglasi)
       (log/info "Broj novih oglasa: " (count novi-oglasi))
@@ -41,7 +41,7 @@
         set-svih-oglasa    (if fajl-postoji?
                              (edn/read-string (slurp put-do-seta-svih-oglasa-stanovi))
                              #{})
-        novi-oglasi        (remove (comp set-svih-oglasa :hes) oglasi-sa-hesevima)]
+        novi-oglasi        (set (remove (comp set-svih-oglasa :hes) oglasi-sa-hesevima))]
     (log/info "Proveravam oglase za stanove")
     (when (seq novi-oglasi)
       (log/info "Broj novih oglasa: " (count novi-oglasi))
@@ -59,7 +59,7 @@
         set-svih-oglasa    (if fajl-postoji?
                              (edn/read-string (slurp put-do-seta-svih-oglasa-vikendice))
                              #{})
-        novi-oglasi        (remove (comp set-svih-oglasa :hes) oglasi-sa-hesevima)]
+        novi-oglasi        (set (remove (comp set-svih-oglasa :hes) oglasi-sa-hesevima))]
     (log/info "Proveravam oglase za vikendice")
     (when (seq novi-oglasi)
       (log/info "Broj novih oglasa: " (count novi-oglasi))
@@ -77,7 +77,7 @@
         set-svih-oglasa    (if fajl-postoji?
                              (edn/read-string (slurp put-do-seta-svih-oglasa-stanova-za-izdavanje))
                              #{})
-        novi-oglasi        (remove (comp set-svih-oglasa :hes) oglasi-sa-hesevima)]
+        novi-oglasi        (set (remove (comp set-svih-oglasa :hes) oglasi-sa-hesevima))]
     (log/info "Proveravam oglase za stanove izdavanje")
     (when (seq novi-oglasi)
       (log/info "Broj novih oglasa: " (count novi-oglasi))
@@ -88,6 +88,7 @@
       (.write wrtr ^String (str (into set-svih-oglasa (map :hes novi-oglasi)))))))
 
 (defn -main [& _args]
+  ;; poceo je da vraca duplikat oglase od kad sam uveo automatsko stranicenje. ne znam zasto
   (proveri-oglase-sa-skladistem-kuce)
   (proveri-oglase-sa-skladistem-vikendice)
   ;;(proveri-oglase-sa-skladistem-stanovi-izdavanje)
