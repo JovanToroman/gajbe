@@ -45,6 +45,6 @@
                        "https://www.4zida.rs/izdavanje-kuca/beograd?skuplje_od=100eur&jeftinije_od=500eur&pet_friendly="]})
 
 (def imena-domena
-  {:KP          "https://novi.kupujemprodajem.com"
+  {:KP          "https://kupujemprodajem.com"
    :halo-oglasi "https://www.halooglasi.com"
    :4zida       "https://www.4zida.rs"})

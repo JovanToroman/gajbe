@@ -9,7 +9,7 @@
   (:import (java.time ZoneId))
   (:gen-class))
 
-(def broj-strana 10)
+(def broj-strana 1)
 
 (defprotocol IzvuciOglase
   (dohvati-stranicu [this url] "prihvata url i vraća html stranicu")
@@ -57,25 +57,39 @@
   (dohvati-stranicu [_this url]
     (slurp url))
   (izvuci-oglase [this]
-    (let [oglasi (mapcat (fn [url]
-                           (hs/select (hs/tag :article) (h/as-hickory (h/parse (dohvati-stranicu this url)))))
-                   (ustranici-urlove this broj-strana))]
+    (let [oglasi (remove (fn [oglas]
+                           (str/includes? (get-in oglas [:attrs :class]) "CategoryPartner"))
+                   (mapcat (fn [url]
+                             (hs/select (hs/tag :article) (h/as-hickory (h/parse (dohvati-stranicu this url)))))
+                     (ustranici-urlove this broj-strana)))]
       (sequence (keep (partial obradi-oglas this)) oglasi)))
   (obradi-oglas [_this oglas]
-    (let [[{{link-oglasa :href} :attrs}] (hs/select (hs/class :Link_link__J4Qd8) oglas)
+    (let [[{{link-oglasa :href} :attrs}] (hs/select
+                                           (hs/child (hs/tag :div) (hs/tag :div) (hs/tag :div) (hs/tag :a))
+                                           oglas)
           link-oglasa   (str (:KP imena-domena) link-oglasa)
-          [{[naslov] :content}] (hs/select (hs/class :AdItem_name__RhGAZ) oglas)
-          [{[opis] :content}] (hs/select (hs/child (hs/class :AdItem_adTextHolder__Fmra9) (hs/tag :p)) oglas)
-          [{[cena] :content}] (hs/select (hs/class :AdItem_price__jUgxi) oglas)
-          [{{link-fotografije :src} :attrs}] (hs/select (hs/child (hs/class :AdItem_imageHolder__LZaKa) (hs/tag :img))
-                                               oglas)
-          [{[mesto] :content}] (hs/select (hs/child (hs/class :AdItem_originAndPromoLocation__HgtYj) (hs/tag :p)) oglas)
+          [{[naslov] :content}] (hs/select
+                                  (hs/child (hs/tag :div) (hs/tag :div) (hs/tag :div) (hs/tag :a) (hs/tag :div))
+                                  oglas)
+          [{[opis] :content}] (hs/select
+                                (hs/child (hs/tag :div) (hs/tag :div) (hs/tag :div) (hs/tag :p))
+                                oglas)
+          [{[cena] :content}] (hs/select (hs/child (hs/tag :div) (hs/tag :div) (hs/tag :div) (hs/tag :div)) oglas)
+          [{{link-fotografije :src} :attrs}] (hs/select (hs/child (hs/tag :a) (hs/tag :div) (hs/tag :img)) oglas)
+          {[mesto] :content} (last (hs/select
+                                     (hs/child (hs/tag :div) (hs/tag :div) (hs/tag :p))
+                                     oglas))
           datum         (when-some [datum-sirov (first (:content (last
-                                                                   (hs/select (hs/child (hs/class :AdItem_postedStatus__swUhG)
-                                                                                (hs/tag :p)) oglas))))]
+                                                                   (hs/select
+                                                                     (hs/child (hs/tag :div) (hs/tag :div) (hs/tag :div)
+                                                                       (hs/tag :p))
+                                                                     oglas))))]
                           (relativni-u-apsolutni datum-sirov))
-          kp-obnovljen? (some? (first (:content (first (hs/select (hs/child (hs/class :AdItem_postedStatus__swUhG)
-                                                                    (hs/tag :a)) oglas)))))
+          kp-obnovljen? (some? (first (:content (first (hs/select
+                                                         (hs/and
+                                                           (hs/child (hs/tag :div) (hs/tag :div) (hs/tag :div) (hs/tag :a))
+                                                           (hs/attr :aria-label #{"obnovljen"}))
+                                                         oglas)))))
           izvor         :KP]
       ;; KP je ponekad nedostupan pa je bacao NPE pa radim nil proveru za datum i za druga polja
       (when (and (some? datum) (some? link-oglasa) (some? naslov))
@@ -135,18 +149,16 @@
   (obradi-oglas [_this oglas]
     (let [[{[naslov] :content}] (hs/select (hs/child (hs/class :title) (hs/tag :h3)) oglas)
           [{{link-oglasa :href} :attrs}] (hs/select (hs/child (hs/class :classified) (hs/tag :a)) oglas)
-          link-oglasa   (str (:beogradski-oglasi imena-domena) link-oglasa)
+          link-oglasa (str (:beogradski-oglasi imena-domena) link-oglasa)
           [{[opis] :content}] (hs/select (hs/child (hs/class :fbac) (hs/tag :p)) oglas)
           [{[cena] :content}] (hs/select (hs/class :sl-price) oglas)
-          cena          (str/trim cena)
+          cena        (str/trim cena)
           [{{link-fotografije :src} :attrs}] (hs/select (hs/class :cpic) oglas)
           [{[mesto] :content}] (hs/select (hs/class :sl-loc) oglas)
           [{[datum] :content}] (hs/select (hs/child (hs/class :fbac) (hs/class :small-light)) oglas)
-          datum         (relativni-u-apsolutni (str/trim (second (str/split datum #" "))))
-          kp-obnovljen? (some? (first (:content (first (hs/select (hs/child (hs/class :AdItem_postedStatus__swUhG)
-                                                                    (hs/tag :a)) oglas)))))
-          izvor         :beogradski-oglasi]
-      (-m link-oglasa naslov opis cena link-fotografije mesto datum kp-obnovljen? izvor))))
+          datum       (relativni-u-apsolutni (str/trim (second (str/split datum #" "))))
+          izvor       :beogradski-oglasi]
+      (-m link-oglasa naslov opis cena link-fotografije mesto datum izvor))))
 
 (deftype Procesor4zida [urlovi imena-domena]
   IzvuciOglase
@@ -161,26 +173,27 @@
   (dohvati-stranicu [_this url]
     (slurp url))
   (izvuci-oglase [this]
-    (let [xform  (comp
-                   (map (fn [element]
-                          (update element :content (fn [[content]]
-                                                     (json/read-value content json/keyword-keys-object-mapper)))))
-                   (filter (comp #{"RealEstateListing"} :additionalType :content))
-                   (map (fn [{:keys [content]}]
-                          ((juxt :name :url :image) content))))
-          oglasi (mapcat (fn [url]
-                           (sequence xform (hs/select (hs/and (hs/tag :script) (hs/attr :type #{"application/ld+json"}))
-                                             (h/as-hickory (h/parse (dohvati-stranicu this url))))))
+    (let [oglasi (mapcat (fn [url]
+                           (hs/select (hs/attr :test-data #{"ad-search-card"})
+                             (h/as-hickory (h/parse (dohvati-stranicu this url)))))
                    (ustranici-urlove this broj-strana))]
       (map (partial obradi-oglas this) oglasi)))
   (obradi-oglas [_this oglas]
-    (let [[naslov mesto cena kvadratura] (str/split (first oglas) #", ")
-          link-oglasa      (second oglas)
-          link-fotografije (nth oglas 2)
-          datum            (jt/instant)
-          izvor            :4zida
-          opis             (str "4zida " (first oglas))]
-      (-m naslov link-oglasa opis cena link-fotografije kvadratura mesto datum izvor))))
+    (let [[{[naslov] :content}] (hs/select (hs/and (hs/class :desk:text-lg) (hs/tag :p)) oglas)
+          [{{link-oglasa :href} :attrs}] (hs/select (hs/and (hs/class :justify-between) (hs/class :gap-1)
+                                                      (hs/class :flex) (hs/tag :a)) oglas)
+          link-oglasa (str (:4zida imena-domena) link-oglasa)
+          [{[opis] :content}] (hs/select (hs/child (hs/and (hs/class :desk:block) (hs/class :desk:text-sm) (hs/tag :div))
+                                           (hs/tag :span)) oglas)
+          [{[cena] :content}] (hs/select (hs/and (hs/class :rounded-tl) (hs/tag :p)) oglas)
+          cena        (str/trim cena)
+          [{{link-fotografije :srcset} :attrs}] (hs/select (hs/child (hs/and (hs/class :relative) (hs/class :size-full)
+                                                                       (hs/class "bg-black/50")) (hs/tag :img)) oglas)
+          [{[mesto] :content}] (hs/select (hs/and (hs/class :line-clamp-2) (hs/class :desk:line-clamp-3)
+                                            (hs/class :!leading-tight)) oglas)
+          datum       (jt/instant)
+          izvor       :4zida]
+      (-m link-oglasa naslov opis cena link-fotografije mesto datum izvor))))
 
 (defn dohvati-oglase []
   (sort-by :datum jt/after?
