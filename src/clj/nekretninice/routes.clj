@@ -1,5 +1,5 @@
-(ns gajbe.routes
-  (:require [gajbe.handlers :as handlers]))
+(ns nekretninice.routes
+  (:require [nekretninice.handlers :as handlers]))
 
 (def routes
   ["/" {}

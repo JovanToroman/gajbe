@@ -1,12 +1,12 @@
-(ns gajbe.web
-  (:require [gajbe.routes :as routes]
-            [muuntaja.core :as m]
+(ns nekretninice.web
+  (:require [muuntaja.core :as m]
+            [nekretninice.routes :as routes]
             [reitit.coercion.spec]
             [reitit.ring :as ring]
             [reitit.ring.coercion :as coercion]
             [reitit.ring.middleware.muuntaja :as muuntaja]
             [reitit.ring.middleware.parameters :as parameters]
-            #_[ring.middleware.cors :refer [wrap-cors]]))
+    #_[ring.middleware.cors :refer [wrap-cors]]))
 
 (defn wrap-merge-params
   [handler]

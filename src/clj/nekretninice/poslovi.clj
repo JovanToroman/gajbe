@@ -1,10 +1,10 @@
-(ns gajbe.poslovi
+(ns nekretninice.poslovi
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
-            [gajbe.email :as imejl]
-            [gajbe.prikazi :as prikazi]
-            [gajbe.rasclanjivaci :as rasclanjivaci]
-            [gajbe.util :as util]
+            [nekretninice.email :as imejl]
+            [nekretninice.prikazi :as prikazi]
+            [nekretninice.rasclanjivaci :as rasclanjivaci]
+            [nekretninice.util :as util]
             [taoensso.timbre :as log])
   (:gen-class))
 

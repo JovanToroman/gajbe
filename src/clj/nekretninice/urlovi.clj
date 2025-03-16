@@ -1,4 +1,4 @@
-(ns gajbe.urlovi)
+(ns nekretninice.urlovi)
 
 (def urlovi-oglasa-kuce
   {:KP                ["https://kupujemprodajem.com/nekretnine-kupoprodaja/kuce/pretraga?categoryId=26&groupId=230&locationId=1&priceFrom=50000&priceTo=150000&currency=eur"

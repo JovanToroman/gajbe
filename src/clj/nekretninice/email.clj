@@ -1,4 +1,4 @@
-(ns gajbe.email
+(ns nekretninice.email
   (:require [postal.core :as email]))
 
 (defn posalji-imejl

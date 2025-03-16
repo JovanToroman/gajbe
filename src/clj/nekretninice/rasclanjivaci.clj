@@ -1,11 +1,11 @@
-(ns gajbe.rasclanjivaci
+(ns nekretninice.rasclanjivaci
   (:require [clojure.string :as str]
-            [gajbe.urlovi :as url]
-            [gajbe.util :refer [-m]]
             [hickory.core :as h]
             [hickory.select :as hs]
             [java-time.api :as jt]
-            [jsonista.core :as json])
+            [jsonista.core :as json]
+            [nekretninice.urlovi :as url]
+            [nekretninice.util :refer [-m]])
   (:import (java.time ZoneId))
   (:gen-class))
 

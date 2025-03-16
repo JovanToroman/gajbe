@@ -4,7 +4,7 @@
 (def class-dir "target/classes")
 (def basis (b/create-basis {:project "deps.edn"}))
 (def srcs (:paths basis))
-(def uber-file "target/gajbe.jar")
+(def uber-file "target/nekretninice.jar")
 
 (defn clean [_]
   (b/delete {:path "target"}))
@@ -19,4 +19,4 @@
   (b/uber {:class-dir class-dir
            :uber-file uber-file
            :basis     basis
-           :main      'gajbe.poslovi}))
+           :main      'nekretninice.poslovi}))

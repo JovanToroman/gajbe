@@ -1,4 +1,4 @@
-(ns gajbe.prikazi
+(ns nekretninice.prikazi
   (:require [clojure.string :as str]
             [hiccup.core :as h]))
 

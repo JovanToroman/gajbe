@@ -1,4 +1,4 @@
-(ns gajbe.util
+(ns nekretninice.util
   (:import (java.security MessageDigest)))
 
 (defmacro -m

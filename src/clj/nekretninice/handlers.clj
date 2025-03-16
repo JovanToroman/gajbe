@@ -1,6 +1,6 @@
-(ns gajbe.handlers
-  (:require [gajbe.prikazi :as prikazi]
-            [gajbe.rasclanjivaci :as parsers]
+(ns nekretninice.handlers
+  (:require [nekretninice.prikazi :as prikazi]
+            [nekretninice.rasclanjivaci :as parsers]
             [ring.util.http-response :as r]))
 
 (defn prikazi-oglase
