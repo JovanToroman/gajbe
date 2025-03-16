@@ -1,0 +1,11 @@
+{:deps     true
+ :dev-http {8060 "resursi/javno"}
+ :builds   {:dev {:target           :browser
+                  :output-dir       "resursi/javno/js"
+                  :compiler-options {:warnings {:undeclared-var false
+                                                :fn-deprecated  false}}
+                  :asset-path       "/js"
+                  :modules          {:glavna {:entries [nekretninice.konfiguracija.glavno]}}
+                  :devtools         {:after-load nekretninice.konfiguracija.glavno/ponovo-iznedri
+                                     :preloads   [devtools.preload
+                                                  re-frisk.preload]}}}}

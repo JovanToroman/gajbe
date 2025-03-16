@@ -6,3 +6,9 @@
 /*.jar
 /*.log
 /*.txt
+/package-lock.json
+/node_modules/
+/.shadow-cljs/
+/resursi/javno/js/cljs-runtime/
+/resursi/javno/js/glavna.js
+/resursi/javno/js/manifest.edn
