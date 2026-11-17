@@ -1,246 +1,255 @@
 (ns nekretninice.rasclanjivaci
-  (:require [clojure.string :as str]
+  (:require [clj-http.client :as http]
+            [clojure.string :as str]
             [hickory.core :as h]
             [hickory.select :as hs]
             [java-time.api :as jt]
-            [jsonista.core :as json]
             [nekretninice.urlovi :as url]
-            [nekretninice.util :refer [-m]])
-  (:import (java.time ZoneId))
-  (:gen-class))
+            [nekretninice.util :as util]
+            [taoensso.timbre :as log])
+  (:import (java.time Instant ZoneId)))
 
-(def broj-strana 1)
+(def broj-strana 2)
 
-(defprotocol IzvuciOglase
-  (dohvati-stranicu [this url] "prihvata url i vraća html stranicu")
-  (izvuci-oglase [this] "uzima stranicu i vraca kolekciju mapa, od kojih je svaka jedan oglas")
-  (obradi-oglas [this oglas] "uzima hickory podatke jednog oglasa i vraca njegove elemente")
-  (ustranici-urlove [this broj-strana] "od jednog url-a pravi `broj-strana` urlova tako što uzima sledeću stranu"))
+(defn dohvati-html [url]
+  (try
+    (:body (http/get url
+             {:headers            {"User-Agent"      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+                                   "Accept-Language" "sr-RS,sr;q=0.9,en-US;q=0.8"}
+              :socket-timeout     12000
+              :connection-timeout 8000
+              :throw-exceptions   false}))
+    (catch Exception e
+      (log/warn "Greška pri dohvatanju URL-a:" url (.getMessage e))
+      nil)))
+
+(defn ocisti-tekst [s]
+  (when s
+    (-> (str s)
+      (str/replace #"\s+" " ")
+      str/trim)))
+
+(defn parsiraj-cenu-eur [cena-str]
+  (when (and cena-str (not (str/blank? cena-str)))
+    (let [samo-cifre (-> cena-str
+                       (str/replace #"\." "")
+                       (str/replace #"," ".")
+                       (as-> s (re-find #"\d+" s)))]
+      (when samo-cifre
+        (let [v (parse-double samo-cifre)]
+          (when (and v (> v 1000) (< v 25000000))
+            v))))))
+
+(defn parsiraj-kvadraturu [tekst]
+  (when tekst
+    (when-let [[_ broj] (re-find #"(\d+(?:[\.,]\d+)?)\s*(?:m2|m²|kv)" (str/lower-case tekst))]
+      (parse-double (str/replace broj "," ".")))))
+
+(defn parsiraj-broj-soba [tekst]
+  (when tekst
+    (let [t (str/lower-case tekst)]
+      (cond
+        (str/includes? t "garsonjera") 0.5
+        (str/includes? t "jednoiposoban") 1.5
+        (str/includes? t "jednosoban") 1.0
+        (str/includes? t "dvoiposoban") 2.5
+        (str/includes? t "dvosoban") 2.0
+        (str/includes? t "troiposoban") 3.5
+        (str/includes? t "trosoban") 3.0
+        (str/includes? t "četvorosoban") 4.0
+        (str/includes? t "cetvorosoban") 4.0
+        :else (when-let [[_ br] (re-find #"(\d+(?:[\.,]5)?)" t)]
+                (parse-double (str/replace br "," ".")))))))
+
+(defn izvori-lokaciju [mesto-sirovo]
+  (let [delovi (->> (str/split (or mesto-sirovo "") #"[/,\-]")
+                 (map ocisti-tekst)
+                 (remove str/blank?)
+                 vec)]
+    {:grad          (first delovi)
+     :opstina       (second delovi)
+     :mikrolokacija (nth delovi 2 nil)
+     :mesto_sirovo  (ocisti-tekst mesto-sirovo)}))
+
+(defn detektuj-atribute-iz-teksta [naslov opis]
+  (let [spojeno (str/lower-case (str naslov " " opis))]
+    {:uknjizeno (boolean (re-find #"uknji[žz]en" spojeno))
+     :oglasivac (cond
+                  (re-find #"vlasnik|direktno od vlasnika|bez posrednika" spojeno) "vlasnik"
+                  (re-find #"investitor" spojeno) "investitor"
+                  :else "agencija")}))
+
+(defn izvuci-prvi-url-iz-srcset [srcset-ili-src]
+  (when (and srcset-ili-src (not (str/blank? srcset-ili-src)))
+    (-> srcset-ili-src
+      str/trim
+      (str/split #",")
+      first
+      str/trim
+      (str/split #"\s+")
+      first)))
 
 (defn datum-string->instant [^String datum ^String format]
-  (let [formater        (jt/formatter format)
-        local-date-time (.atStartOfDay (jt/local-date formater datum))]
-    (jt/instant (jt/zoned-date-time local-date-time (ZoneId/systemDefault)))))
+  (try
+    (let [formater        (jt/formatter format)
+          local-date-time (.atStartOfDay (jt/local-date formater (str/trim datum)))]
+      (jt/instant (jt/zoned-date-time local-date-time (ZoneId/systemDefault))))
+    (catch Exception _ (Instant/now))))
 
-(defn- relativni-u-apsolutni
-  [^String datum]
-  (condp re-matches datum
-    #"[Dd]anas" (jt/instant)
-    #"[Jj]u[a-zA-Z\u00C0-\u024F]e" (jt/minus (jt/instant) (jt/days 1))
-    #"pre nedelju dana" (jt/minus (jt/instant) (jt/weeks 1))
-    #"pre mesec dana" (jt/minus (jt/instant) (jt/days 30))
-    #"pre ([0-9]+) nedelj[a-z]" :>> (fn [[_ broj-nedelja]]
-                                      (jt/minus (jt/instant) (jt/weeks (read-string broj-nedelja))))
-    #"pre ([0-9]+) dana" :>> (fn [[_ broj-dana]]
-                               (jt/minus (jt/instant) (jt/days (read-string broj-dana))))
-    #"([0-9]+) dan[a-z]?[\s]+pre" :>> (fn [[_ broj-dana]]
-                                        (jt/minus (jt/instant) (jt/days (read-string broj-dana))))
-    #"([0-9]+) sat[a-z]?[\s]+pre" :>> (fn [[_ broj-sati]]
-                                        (jt/minus (jt/instant) (jt/hours (read-string broj-sati))))
-    #"([0-9]+) minut[a-z]?[\s]+pre" :>> (fn [[_ broj-minuta]]
-                                          (jt/minus (jt/instant) (jt/minutes (read-string broj-minuta))))
-    #"([a-zA-Z]+) ([0-9]+), ([0-9]+)" :>> (fn [[_ mesec dan godina]] ;; e.g. Mar 21, 2023
-                                            (datum-string->instant
-                                              (str/join "/" [godina mesec (min (inc (parse-long dan)) 31)])
-                                              "yyyy/MMM/d"))))
+(defn relativni-u-apsolutni [^String datum]
+  (if (str/blank? datum)
+    (Instant/now)
+    (let [d (str/trim datum)]
+      (or (condp re-find d
+            #"[Dd]anas" (jt/instant)
+            #"[Jj]u[čc]e" (jt/minus (jt/instant) (jt/days 1))
+            #"pre nedelju dana" (jt/minus (jt/instant) (jt/weeks 1))
+            #"pre mesec dana" (jt/minus (jt/instant) (jt/days 30))
+            #"pre ([0-9]+) nedelj" :>> (fn [[_ br]] (jt/minus (jt/instant) (jt/weeks (parse-long br))))
+            #"pre ([0-9]+) dan" :>> (fn [[_ br]] (jt/minus (jt/instant) (jt/days (parse-long br))))
+            #"([0-9]+) sat" :>> (fn [[_ br]] (jt/minus (jt/instant) (jt/hours (parse-long br))))
+            #"([0-9]+) minut" :>> (fn [[_ br]] (jt/minus (jt/instant) (jt/minutes (parse-long br))))
+            nil)
+        (Instant/now)))))
 
-(deftype ProcesorKP [urlovi imena-domena]
-  IzvuciOglase
-  (ustranici-urlove [_this broj-strana]
-    (mapcat (fn [url]
-              (conj
-                (map (fn [strana]
-                       (str url "&page=" strana))
-                  (range 2 (inc broj-strana)))
-                url))
-      (:KP urlovi)))
-  (dohvati-stranicu [_this url]
-    (slurp url))
-  (izvuci-oglase [this]
-    (let [oglasi (remove (fn [oglas]
-                           (str/includes? (get-in oglas [:attrs :class]) "CategoryPartner"))
-                   (mapcat (fn [url]
-                             (hs/select (hs/tag :article) (h/as-hickory (h/parse (dohvati-stranicu this url)))))
-                     (ustranici-urlove this broj-strana)))]
-      (sequence (keep (partial obradi-oglas this)) oglasi)))
-  (obradi-oglas [_this oglas]
-    (let [[{{link-oglasa :href} :attrs}] (hs/select
-                                           (hs/child (hs/tag :div) (hs/tag :div) (hs/tag :div) (hs/tag :a))
-                                           oglas)
-          link-oglasa   (str (:KP imena-domena) link-oglasa)
-          [{[naslov] :content}] (hs/select
-                                  (hs/child (hs/tag :div) (hs/tag :div) (hs/tag :div) (hs/tag :a) (hs/tag :div))
-                                  oglas)
-          [{[opis] :content}] (hs/select
-                                (hs/child (hs/tag :div) (hs/tag :div) (hs/tag :div) (hs/tag :p))
-                                oglas)
-          [{[cena] :content}] (hs/select (hs/child (hs/tag :div) (hs/tag :div) (hs/tag :div) (hs/tag :div)) oglas)
-          [{{link-fotografije :src} :attrs}] (hs/select (hs/child (hs/tag :a) (hs/tag :div) (hs/tag :img)) oglas)
-          {[mesto] :content} (last (hs/select
-                                     (hs/child (hs/tag :div) (hs/tag :div) (hs/tag :p))
-                                     oglas))
-          datum         (when-some [datum-sirov (first (:content (last
-                                                                   (hs/select
-                                                                     (hs/child (hs/tag :div) (hs/tag :div) (hs/tag :div)
-                                                                       (hs/tag :p))
-                                                                     oglas))))]
-                          (relativni-u-apsolutni datum-sirov))
-          kp-obnovljen? (some? (first (:content (first (hs/select
-                                                         (hs/and
-                                                           (hs/child (hs/tag :div) (hs/tag :div) (hs/tag :div) (hs/tag :a))
-                                                           (hs/attr :aria-label #{"obnovljen"}))
-                                                         oglas)))))
-          izvor         :KP]
-      ;; KP je ponekad nedostupan pa je bacao NPE pa radim nil proveru za datum i za druga polja
-      (when (and (some? datum) (some? link-oglasa) (some? naslov))
-        (-m link-oglasa naslov opis cena link-fotografije mesto datum kp-obnovljen? izvor)))))
+;; --- 1. KupujemProdajem ---
+(defn obradi-kp-oglas [oglas {:keys [vrsta_ponude tip_nekretnine]}]
+  (let [[{{href :href} :attrs}] (hs/select (hs/descendant (hs/tag :a)) oglas)
+        puni-link     (when href
+                        (if (str/starts-with? href "http")
+                          href
+                          (str (:KP url/imena-domena) href)))
+        spoljni-id    (or (second (re-find #"/oglas/[^/]+/(\d+)" (or href "")))
+                        (when puni-link (util/md5 puni-link)))
+        [{[naslov] :content}] (hs/select (hs/child (hs/tag :div) (hs/tag :div) (hs/tag :div) (hs/tag :a) (hs/tag :div)) oglas)
+        [{[opis] :content}] (hs/select (hs/child (hs/tag :div) (hs/tag :div) (hs/tag :div) (hs/tag :p)) oglas)
+        [{[cena-sirova] :content}] (hs/select (hs/child (hs/tag :div) (hs/tag :div) (hs/tag :div) (hs/tag :div)) oglas)
+        [{{slika :src} :attrs}] (hs/select (hs/descendant (hs/tag :img)) oglas)
+        {[mesto] :content} (last (hs/select (hs/child (hs/tag :div) (hs/tag :div) (hs/tag :p)) oglas))
+        datum-sirov   (first (:content (last (hs/select (hs/child (hs/tag :div) (hs/tag :div) (hs/tag :div) (hs/tag :p)) oglas))))
+        kp-obnovljen? (some? (seq (hs/select (hs/attr :aria-label #{"obnovljen"}) oglas)))
+        naslov-cist   (ocisti-tekst naslov)
+        opis-cist     (ocisti-tekst opis)]
+    (when (and spoljni-id naslov-cist puni-link)
+      (merge
+        {:izvor            :KP
+         :spoljni_id       spoljni-id
+         :vrsta_ponude     vrsta_ponude
+         :tip_nekretnine   tip_nekretnine
+         :naslov           naslov-cist
+         :opis             opis-cist
+         :cena_eur         (parsiraj-cenu-eur cena-sirova)
+         :kvadratura_m2    (or (parsiraj-kvadraturu naslov-cist) (parsiraj-kvadraturu opis-cist))
+         :broj_soba        (or (parsiraj-broj-soba puni-link) (parsiraj-broj-soba naslov-cist))
+         :link_oglasa      puni-link
+         :link_fotografije slika
+         :kp_obnovljen     kp-obnovljen?
+         :objavljen_u      (relativni-u-apsolutni (str datum-sirov))}
+        (izvori-lokaciju mesto)
+        (detektuj-atribute-iz-teksta naslov-cist opis-cist)))))
 
-(deftype ProcesorHaloOglasi [urlovi imena-domena]
-  IzvuciOglase
-  (ustranici-urlove [_this broj-strana]
-    (mapcat (fn [url]
-              (conj
-                (map (fn [strana]
-                       (str url "&page=" strana))
-                  (range 2 (inc broj-strana)))
-                url))
-      (:halo-oglasi urlovi)))
-  (dohvati-stranicu [_this url]
-    (slurp url))
-  (izvuci-oglase [this]
-    (let [oglasi (mapcat (fn [url]
-                           (hs/select (hs/and (hs/class :product-item) (hs/el-not (hs/class :banner-list)))
-                             (h/as-hickory (h/parse (dohvati-stranicu this url)))))
-                   (ustranici-urlove this broj-strana))]
-      (map (partial obradi-oglas this) oglasi)))
-  (obradi-oglas [_this oglas]
-    (let [[{[naslov] :content {link-oglasa :href} :attrs}] (hs/select (hs/child (hs/class :product-title) (hs/tag :a))
-                                                             oglas)
-          link-oglasa (str (:halo-oglasi imena-domena) link-oglasa)
-          [{[{[cena] :content}] :content}] (hs/select (hs/attr :data-value) oglas)
-          [{{link-fotografije :src} :attrs}] (hs/select (hs/descendant (hs/tag :figure) (hs/tag :img)) oglas)
-          mesto       (str/join "/" (map (comp first :content)
+;; --- 2. HaloOglasi ---
+(defn obradi-halo-oglas [oglas {:keys [vrsta_ponude tip_nekretnine]}]
+  (let [[{[naslov] :content {href :href} :attrs}] (hs/select (hs/child (hs/class :product-title) (hs/tag :a)) oglas)
+        puni-link   (when href (str (:halo-oglasi url/imena-domena) href))
+        spoljni-id  (or (second (re-find #"/(\d{8,})" (or href "")))
+                      (when puni-link (util/md5 puni-link)))
+        [{[{[cena-sirova] :content}] :content}] (hs/select (hs/attr :data-value) oglas)
+        [{{slika :src} :attrs}] (hs/select (hs/descendant (hs/tag :figure) (hs/tag :img)) oglas)
+        mesto       (str/join " / " (keep (comp ocisti-tekst first :content)
                                       (:content (first (hs/select (hs/class :subtitle-places) oglas)))))
-          [tip kvadratura broj-soba] (map (comp first :content)
-                                       (hs/select (hs/descendant (hs/class :product-features) (hs/class :value-wrapper))
-                                         oglas))
-          [{[datum] :content}] (hs/select (hs/class :publish-date) oglas)
-          datum       (datum-string->instant datum "dd.MM.yyyy.")
-          izvor       :halo-oglasi]
-      (-m link-oglasa naslov cena link-fotografije mesto tip kvadratura broj-soba datum izvor))))
+        osobine     (mapv (comp ocisti-tekst first :content)
+                      (hs/select (hs/descendant (hs/class :product-features) (hs/class :value-wrapper)) oglas))
+        kvadratura  (parsiraj-kvadraturu (str/join " " osobine))
+        broj-soba   (parsiraj-broj-soba (second osobine))
+        sprat       (nth osobine 2 nil)
+        [{[opis] :content}] (hs/select (hs/class :text-description-list) oglas)
+        [{[datum-sirov] :content}] (hs/select (hs/class :publish-date) oglas)
+        naslov-cist (ocisti-tekst naslov)
+        opis-cist   (ocisti-tekst opis)]
+    (when (and spoljni-id naslov-cist puni-link)
+      (merge
+        {:izvor            :halo-oglasi
+         :spoljni_id       spoljni-id
+         :vrsta_ponude     vrsta_ponude
+         :tip_nekretnine   tip_nekretnine
+         :naslov           naslov-cist
+         :opis             opis-cist
+         :cena_eur         (parsiraj-cenu-eur cena-sirova)
+         :kvadratura_m2    kvadratura
+         :broj_soba        broj-soba
+         :sprat            sprat
+         :link_oglasa      puni-link
+         :link_fotografije slika
+         :objavljen_u      (if datum-sirov (datum-string->instant datum-sirov "dd.MM.yyyy.") (Instant/now))}
+        (izvori-lokaciju mesto)
+        (detektuj-atribute-iz-teksta naslov-cist opis-cist)))))
 
-#_(deftype ProcesorBeogradskiOglasi [urlovi imena-domena]
-  IzvuciOglase
-  (ustranici-urlove [_this broj-strana]
-    (mapcat (fn [url]
-              (conj
-                (map (fn [strana]
-                       (str url "&page=" strana))
-                  (range 2 (inc broj-strana)))
-                url))
-      (:beogradski-oglasi urlovi)))
-  (dohvati-stranicu [_this url]
-    (slurp url))
-  (izvuci-oglase [this]
-    (let [oglasi (mapcat (fn [url]
-                           (hs/select (hs/class :classified) (h/as-hickory (h/parse (dohvati-stranicu this url)))))
-                   (ustranici-urlove this broj-strana))]
-      (map (partial obradi-oglas this) oglasi)))
-  (obradi-oglas [_this oglas]
-    (let [[{[naslov] :content}] (hs/select (hs/child (hs/class :title) (hs/tag :h3)) oglas)
-          [{{link-oglasa :href} :attrs}] (hs/select (hs/child (hs/class :classified) (hs/tag :a)) oglas)
-          link-oglasa (str (:beogradski-oglasi imena-domena) link-oglasa)
-          [{[opis] :content}] (hs/select (hs/child (hs/class :fbac) (hs/tag :p)) oglas)
-          [{[cena] :content}] (hs/select (hs/class :sl-price) oglas)
-          cena        (str/trim cena)
-          [{{link-fotografije :src} :attrs}] (hs/select (hs/class :cpic) oglas)
-          [{[mesto] :content}] (hs/select (hs/class :sl-loc) oglas)
-          [{[datum] :content}] (hs/select (hs/child (hs/class :fbac) (hs/class :small-light)) oglas)
-          datum       (relativni-u-apsolutni (str/trim (second (str/split datum #" "))))
-          izvor       :beogradski-oglasi]
-      (-m link-oglasa naslov opis cena link-fotografije mesto datum izvor))))
+;; --- 3. 4zida (HTML kartice + JSON-LD fallback) ---
+(defn obradi-4zida-oglas [oglas {:keys [vrsta_ponude tip_nekretnine]}]
+  (let [[{[naslov] :content}] (hs/select (hs/and (hs/class :desk:text-lg) (hs/tag :p)) oglas)
+        [{{href :href} :attrs}] (hs/select (hs/tag :a) oglas)
+        puni-link   (when href
+                      (if (str/starts-with? href "http")
+                        href
+                        (str (:4zida url/imena-domena) href)))
+        spoljni-id  (or (second (re-find #"/([a-f0-9]{20,24})(?:\?|$)" (or href "")))
+                      (last (str/split (or href "") #"/")))
+        [{[opis] :content}] (hs/select (hs/child (hs/and (hs/class :desk:block) (hs/class :desk:text-sm) (hs/tag :div))
+                                         (hs/tag :span)) oglas)
+        [{[cena-sirova] :content}] (hs/select (hs/and (hs/class :rounded-tl) (hs/tag :p)) oglas)
+        [{{srcset :srcset src :src} :attrs}] (hs/select (hs/tag :img) oglas)
+        slika       (or (izvuci-prvi-url-iz-srcset srcset) src)
+        [{[mesto] :content}] (hs/select (hs/and (hs/class :line-clamp-2) (hs/class :!leading-tight)) oglas)
+        naslov-cist (ocisti-tekst naslov)
+        opis-cist   (ocisti-tekst opis)]
+    (when (and spoljni-id naslov-cist puni-link)
+      (merge
+        {:izvor            :4zida
+         :spoljni_id       spoljni-id
+         :vrsta_ponude     vrsta_ponude
+         :tip_nekretnine   tip_nekretnine
+         :naslov           naslov-cist
+         :opis             opis-cist
+         :cena_eur         (parsiraj-cenu-eur cena-sirova)
+         :kvadratura_m2    (or (parsiraj-kvadraturu naslov-cist) (parsiraj-kvadraturu opis-cist))
+         :broj_soba        (or (parsiraj-broj-soba naslov-cist) (parsiraj-broj-soba opis-cist))
+         :link_oglasa      puni-link
+         :link_fotografije slika
+         :objavljen_u      (Instant/now)}
+        (izvori-lokaciju mesto)
+        (detektuj-atribute-iz-teksta naslov-cist opis-cist)))))
 
-(deftype Procesor4zida [urlovi imena-domena]
-  IzvuciOglase
-  (ustranici-urlove [_this broj-strana]
-    (mapcat (fn [url]
-              (conj
-                (map (fn [strana]
-                       (str url "&strana=" strana))
-                  (range 2 (inc broj-strana)))
-                url))
-      (:4zida urlovi)))
-  (dohvati-stranicu [_this url]
-    (slurp url))
-  (izvuci-oglase [this]
-    (let [oglasi (mapcat (fn [url]
-                           (hs/select (hs/attr :test-data #{"ad-search-card"})
-                             (h/as-hickory (h/parse (dohvati-stranicu this url)))))
-                   (ustranici-urlove this broj-strana))]
-      (map (partial obradi-oglas this) oglasi)))
-  (obradi-oglas [_this oglas]
-    (let [[{[naslov] :content}] (hs/select (hs/and (hs/class :desk:text-lg) (hs/tag :p)) oglas)
-          [{{link-oglasa :href} :attrs}] (hs/select (hs/and (hs/class :justify-between) (hs/class :gap-1)
-                                                      (hs/class :flex) (hs/tag :a)) oglas)
-          link-oglasa (str (:4zida imena-domena) link-oglasa)
-          [{[opis] :content}] (hs/select (hs/child (hs/and (hs/class :desk:block) (hs/class :desk:text-sm) (hs/tag :div))
-                                           (hs/tag :span)) oglas)
-          [{[cena] :content}] (hs/select (hs/and (hs/class :rounded-tl) (hs/tag :p)) oglas)
-          cena        (str/trim cena)
-          [{{link-fotografije :srcset} :attrs}] (hs/select (hs/child (hs/and (hs/class :relative) (hs/class :size-full)
-                                                                       (hs/class "bg-black/50")) (hs/tag :img)) oglas)
-          [{[mesto] :content}] (hs/select (hs/and (hs/class :line-clamp-2) (hs/class :desk:line-clamp-3)
-                                            (hs/class :!leading-tight)) oglas)
-          datum       (jt/instant)
-          izvor       :4zida]
-      (-m link-oglasa naslov opis cena link-fotografije mesto datum izvor))))
+(defn ustranici-url [izvor bazni-url strana]
+  (if (= strana 1)
+    bazni-url
+    (let [param (if (= izvor :4zida) "strana" "page")
+          sep   (if (str/includes? bazni-url "?") "&" "?")]
+      (str bazni-url sep param "=" strana))))
 
-#_(deftype ProcesorNepremicnine [urlovi imena-domena]
-  IzvuciOglase
-  (ustranici-urlove [_this broj-strana]
-    (mapcat (fn [url]
-              (conj
-                (map (fn [strana]
-                       (str url "/" strana "/"))
-                  (range 2 (inc broj-strana)))
-                url))
-      (:nepremicnine urlovi)))
-  (dohvati-stranicu [_this url]
-    (slurp url))
-  (izvuci-oglase [this]
-    (let [oglasi (mapcat (fn [url]
-                           (hs/select (hs/attr :itemtype #{"http://schema.org/Offer"})
-                             (h/as-hickory (h/parse (dohvati-stranicu this url)))))
-                   (ustranici-urlove this broj-strana))]
-      (map (partial obradi-oglas this) oglasi)))
-  (obradi-oglas [_this oglas]
-    #_(let [[{[naslov] :content}] (hs/select (hs/and (hs/class :desk:text-lg) (hs/tag :p)) oglas)
-            [{{link-oglasa :href} :attrs}] (hs/select (hs/and (hs/class :justify-between) (hs/class :gap-1)
-                                                        (hs/class :flex) (hs/tag :a)) oglas)
-            link-oglasa (str (:4zida imena-domena) link-oglasa)
-            [{[opis] :content}] (hs/select (hs/child (hs/and (hs/class :desk:block) (hs/class :desk:text-sm) (hs/tag :div))
-                                             (hs/tag :span)) oglas)
-            [{[cena] :content}] (hs/select (hs/and (hs/class :rounded-tl) (hs/tag :p)) oglas)
-            cena        (str/trim cena)
-            [{{link-fotografije :srcset} :attrs}] (hs/select (hs/child (hs/and (hs/class :relative) (hs/class :size-full)
-                                                                         (hs/class "bg-black/50")) (hs/tag :img)) oglas)
-            [{[mesto] :content}] (hs/select (hs/and (hs/class :line-clamp-2) (hs/class :desk:line-clamp-3)
-                                              (hs/class :!leading-tight)) oglas)
-            datum       (jt/instant)
-            izvor       :4zida]
-        (-m link-oglasa naslov opis cena link-fotografije mesto datum izvor))
-    oglas))
+(defn skrejpuj-izvor [{:keys [izvor urlovi] :as meta-izvora}]
+  (mapcat
+    (fn [bazni-url]
+      (mapcat
+        (fn [strana]
+          (let [ciljni-url (ustranici-url izvor bazni-url strana)]
+            (when-let [html (dohvati-html ciljni-url)]
+              (let [stablo (h/as-hickory (h/parse html))]
+                (case izvor
+                  :KP
+                  (->> (hs/select (hs/tag :article) stablo)
+                    (remove #(str/includes? (str (get-in % [:attrs :class])) "CategoryPartner"))
+                    (keep #(obradi-kp-oglas % meta-izvora)))
 
-(comment
-  (slurp "https://www.4zida.rs/prodaja-kuca/beograd?skuplje_od=50000eur&jeftinije_od=151000eur&vece_od=80m2&mesto=stara-pazova")
-  (ustranici-urlove (->ProcesorKP url/urlovi-oglasa-kuce url/imena-domena) 10)
-  (let [xform  (comp
-                 (map (fn [element]
-                        (update element :content (fn [[content]]
-                                                   (json/read-value content json/keyword-keys-object-mapper)))))
-                 (filter (comp #{"RealEstateListing"} :additionalType :content))
-                 (map (fn [{:keys [content]}]
-                        ((juxt :name :url :image) content))))
-        oglasi (sequence xform (hs/select (hs/and (hs/tag :script) (hs/attr :type #{"application/ld+json"}))
-                                 (h/as-hickory (h/parse (slurp "https://www.4zida.rs/prodaja-kuca/beograd?skuplje_od=50000eur&jeftinije_od=151000eur&vece_od=80m2&mesto=stara-pazova&strana=2")))))]
-    oglasi))
+                  :halo-oglasi
+                  (->> (hs/select (hs/and (hs/class :product-item) (hs/el-not (hs/class :banner-list))) stablo)
+                    (keep #(obradi-halo-oglas % meta-izvora)))
+
+                  :4zida
+                  (->> (hs/select (hs/attr :test-data #{"ad-search-card"}) stablo)
+                    (keep #(obradi-4zida-oglas % meta-izvora))))))))
+        (range 1 (inc broj-strana))))
+    urlovi))
+
+(defn skrejpuj-sve-portale []
+  (mapcat skrejpuj-izvor url/izvori-za-skrejpovanje))

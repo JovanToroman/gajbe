@@ -3,6 +3,7 @@
            org.clojure/clojurescript           {:mvn/version "1.12.145"}
 
            ring/ring                           {:mvn/version "1.15.6"}
+           ring/ring-defaults                  {:mvn/version "0.7.1"}
            re-frame/re-frame                   {:mvn/version "1.4.7"}
            reagent/reagent                     {:mvn/version "2.0.1"}
            thheller/shadow-cljs                {:mvn/version "3.5.14"}
@@ -10,7 +11,18 @@
            re-frisk/re-frisk                   {:mvn/version "1.7.1"}
            metosin/reitit                      {:mvn/version "0.11.0"}
            metosin/ring-http-response          {:mvn/version "0.9.5"}
+           metosin/jsonista                    {:mvn/version "1.0.2"}
            applied-science/js-interop          {:mvn/version "0.4.2"}
+
+           ;; Database & SQL
+           com.github.seancorfield/next.jdbc   {:mvn/version "1.4.72"}
+           com.github.seancorfield/honeysql    {:mvn/version "2.8.85"}
+           org.postgresql/postgresql           {:mvn/version "42.7.14"}
+           com.zaxxer/HikariCP                 {:mvn/version "7.1.0"}
+
+           ;; Auth & Crypto
+           buddy/buddy-hashers                 {:mvn/version "2.0.167"}
+           buddy/buddy-sign                    {:mvn/version "3.6.1-359"}
 
            funcool/cuerdas                     {:mvn/version "2026.415"}
            com.taoensso/timbre                 {:mvn/version "6.8.0"}
@@ -18,13 +30,10 @@
            hiccup/hiccup                       {:mvn/version "2.0.0"}
            clojure.java-time/clojure.java-time {:mvn/version "1.4.3"}
            com.draines/postal                  {:mvn/version "2.0.5"}
-           lambdaisland/fetch                  {:mvn/version "1.5.83"}
-           kitchen-async/kitchen-async         {:mvn/version "0.1.0-SNAPSHOT"}
            cljs-http/cljs-http                 {:mvn/version "0.1.49"}
            clj-http/clj-http                   {:mvn/version "3.13.1"}}
  :aliases {:build  {:extra-paths ["src/build"]
-                    :extra-deps  {io.github.clojure/tools.build {:git/tag "v0.10.14" :git/sha "1176afd3"}
-                                  org.clj-commons/hickory       {:mvn/version "0.7.8"}}
+                    :extra-deps  {io.github.clojure/tools.build {:git/tag "v0.10.14" :git/sha "1176afd3"}}
                     :ns-default  uberjar}
-           :dev    {:main-opts ["-m" "gajbe.poslovi"]}
-           :worker {:main-opts ["-m" "gajbe.poslovi"]}}}
+           :dev    {:main-opts ["-m" "nekretninice.sistem"]}
+           :worker {:main-opts ["-m" "nekretninice.sistem"]}}}

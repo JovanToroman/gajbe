@@ -1,96 +1,68 @@
 (ns nekretninice.poslovi
-  (:require [clojure.edn :as edn]
-            [clojure.java.io :as io]
+  (:require [java-time.api :as jt]
+            [nekretninice.baza :as baza]
             [nekretninice.imejl :as imejl]
-            [nekretninice.prikazi :as prikazi]
             [nekretninice.rasclanjivaci :as rasclanjivaci]
-            [nekretninice.util :as util]
+            [next.jdbc :as jdbc]
+            [next.jdbc.result-set :as rs]
             [taoensso.timbre :as log])
-  (:gen-class))
+  (:import (java.sql Timestamp)
+           (java.time Instant)
+           (java.util.concurrent Executors TimeUnit)))
 
-(def put-do-seta-svih-oglasa-kuce "set-heseva-svih-oglasa-kuce.txt")
-(def put-do-seta-svih-oglasa-stanovi "set-heseva-svih-oglasa-stan.txt")
-(def put-do-seta-svih-oglasa-vikendice "set-heseva-svih-oglasa-vikendice.txt")
-(def put-do-seta-svih-oglasa-stanova-za-izdavanje "set-heseva-svih-oglasa-stanova-za-izdavanje.txt")
+(def intervali-ucestalosti-u-satima
+  {"odmah"             0
+   "na_6_sati"         6
+   "dnevno"            24
+   "tri_puta_nedeljno" 56
+   "nedeljno"          168})
 
-(defn proveri-oglase-sa-skladistem-kuce []
-  (let [trenutni-oglasi    (rasclanjivaci/dohvati-oglase)
-        ;;trenutni-oglasi (concat (take 4 (rest trenutni-oglasi)) [prvi-oglas] (drop 5 trenutni-oglasi))
-        fajl-postoji?      (.exists (io/file put-do-seta-svih-oglasa-kuce))
-        oglasi-sa-hesevima (map (fn [{:keys [naslov opis mesto] :as oglas}]
-                                  (assoc oglas :hes (util/md5 (str naslov opis mesto))))
-                             trenutni-oglasi)
-        set-svih-oglasa    (if fajl-postoji?
-                             (edn/read-string (slurp put-do-seta-svih-oglasa-kuce))
-                             #{})
-        novi-oglasi        (set (remove (comp set-svih-oglasa :hes) oglasi-sa-hesevima))]
-    (log/info "Proveravam oglase za kuće")
-    (when (seq novi-oglasi)
-      (log/info "Broj novih oglasa: " (count novi-oglasi))
-      (imejl/posalji-imejl "toromanj+gajbe@gmail.com" "Novi oglasi za kuće od 50k do 150k" (prikazi/prikaz-oglasa novi-oglasi))
-      (log/info "Poslat je imejl sa novim oglasima"))
-    (with-open [wrtr (io/writer put-do-seta-svih-oglasa-kuce)]
-      (.write wrtr ^String (str (into set-svih-oglasa (map :hes novi-oglasi)))))))
+(defn vreme-je-za-alarm? [{:keys [ucestalost poslednje_slanje]}]
+  (let [sati      (get intervali-ucestalosti-u-satima ucestalost 24)
+        poslednje (.toInstant ^Timestamp poslednje_slanje)
+        sledece   (jt/plus poslednje (jt/hours sati))]
+    (jt/after? (Instant/now) sledece)))
 
-(defn proveri-oglase-sa-skladistem-stanovi []
-  (let [trenutni-oglasi    (rasclanjivaci/dohvati-oglase-stanova)
-        fajl-postoji?      (.exists (io/file put-do-seta-svih-oglasa-stanovi))
-        oglasi-sa-hesevima (map (fn [{:keys [naslov opis mesto] :as oglas}]
-                                  (assoc oglas :hes (util/md5 (str naslov opis mesto))))
-                             trenutni-oglasi)
-        set-svih-oglasa    (if fajl-postoji?
-                             (edn/read-string (slurp put-do-seta-svih-oglasa-stanovi))
-                             #{})
-        novi-oglasi        (set (remove (comp set-svih-oglasa :hes) oglasi-sa-hesevima))]
-    (log/info "Proveravam oglase za stanove")
-    (when (seq novi-oglasi)
-      (log/info "Broj novih oglasa: " (count novi-oglasi))
-      (imejl/posalji-imejl "toromanj+gajbe@gmail.com" "Novi oglasi za stanove od 50k do 150k" (prikazi/prikaz-oglasa novi-oglasi))
-      (log/info "Poslat je imejl sa novim oglasima"))
-    (with-open [wrtr (io/writer put-do-seta-svih-oglasa-stanovi)]
-      (.write wrtr ^String (str (into set-svih-oglasa (map :hes novi-oglasi)))))))
+(defn obradi-alarme-korisnika! []
+  (let [alarmi (jdbc/execute! (baza/ds)
+                 ["SELECT a.*, k.imejl, k.imejl_potvrdjen, k.pretplata_plan
+                   FROM alarmi_pretrage a
+                   JOIN korisnici k ON k.id = a.korisnik_id
+                   WHERE a.aktivan = TRUE AND k.imejl_potvrdjen = TRUE"]
+                 {:builder-fn rs/as-unqualified-lower-maps})]
+    (doseq [alarm alarmi]
+      (when (vreme-je-za-alarm? alarm)
+        (let [kriterijumi (baza/<-pg-jsonb (:kriterijumi alarm))
+              {:keys [oglasi]} (baza/pretrazi-oglase (assoc kriterijumi :po_strani 50))
+              novi-oglasi (filter (fn [o]
+                                    (jt/after? (.toInstant ^Timestamp (:prvi_put_vidjen o))
+                                      (.toInstant ^Timestamp (:poslednje_slanje alarm))))
+                            oglasi)]
+          (when (seq novi-oglasi)
+            (log/info "Šaljem alarm" (:naziv alarm) "korisniku" (:imejl alarm) "broj oglasa:" (count novi-oglasi))
+            (imejl/posalji-alarm-izvestaj! (:imejl alarm) (:naziv alarm) novi-oglasi))
+          (jdbc/execute-one! (baza/ds)
+            ["UPDATE alarmi_pretrage SET poslednje_slanje = NOW() WHERE id = ?" (:id alarm)]))))))
 
-(defn proveri-oglase-sa-skladistem-vikendice []
-  (let [trenutni-oglasi    (rasclanjivaci/dohvati-oglase-vikendica)
-        fajl-postoji?      (.exists (io/file put-do-seta-svih-oglasa-vikendice))
-        oglasi-sa-hesevima (map (fn [{:keys [naslov opis mesto] :as oglas}]
-                                  (assoc oglas :hes (util/md5 (str naslov opis mesto))))
-                             trenutni-oglasi)
-        set-svih-oglasa    (if fajl-postoji?
-                             (edn/read-string (slurp put-do-seta-svih-oglasa-vikendice))
-                             #{})
-        novi-oglasi        (set (remove (comp set-svih-oglasa :hes) oglasi-sa-hesevima))]
-    (log/info "Proveravam oglase za vikendice")
-    (when (seq novi-oglasi)
-      (log/info "Broj novih oglasa: " (count novi-oglasi))
-      (imejl/posalji-imejl "toromanj+gajbe@gmail.com" "Novi oglasi za vikendice od 10k do 50k" (prikazi/prikaz-oglasa novi-oglasi))
-      (log/info "Poslat je imejl sa novim oglasima"))
-    (with-open [wrtr (io/writer put-do-seta-svih-oglasa-vikendice)]
-      (.write wrtr ^String (str (into set-svih-oglasa (map :hes novi-oglasi)))))))
+(defn izvrsi-ciklus-skrejpovanja! []
+  (log/info "Pokrećem ciklus skrejpovanja oglasa sa KP, HaloOglasi i 4zida...")
+  (try
+    (let [oglasi     (rasclanjivaci/skrejpuj-sve-portale)
+          statistika (frequencies (map baza/sacuvaj-oglas! oglasi))]
+      (log/info "Završeno skrejpovanje:" statistika)
+      (obradi-alarme-korisnika!))
+    (catch Exception e
+      (log/error e "Greška u ciklusu skrejpovanja"))))
 
-(defn proveri-oglase-sa-skladistem-stanovi-izdavanje []
-  (let [trenutni-oglasi    (rasclanjivaci/dohvati-oglase-stanova-za-izdavanje)
-        fajl-postoji?      (.exists (io/file put-do-seta-svih-oglasa-stanova-za-izdavanje))
-        oglasi-sa-hesevima (map (fn [{:keys [naslov opis mesto] :as oglas}]
-                                  (assoc oglas :hes (util/md5 (str naslov opis mesto))))
-                             trenutni-oglasi)
-        set-svih-oglasa    (if fajl-postoji?
-                             (edn/read-string (slurp put-do-seta-svih-oglasa-stanova-za-izdavanje))
-                             #{})
-        novi-oglasi        (set (remove (comp set-svih-oglasa :hes) oglasi-sa-hesevima))]
-    (log/info "Proveravam oglase za stanove izdavanje")
-    (when (seq novi-oglasi)
-      (log/info "Broj novih oglasa: " (count novi-oglasi))
-      (imejl/posalji-imejl "toromanj+gajbe@gmail.com" "Novi oglasi za stanove za izdavanje od 100 do 500 evra"
-        (prikazi/prikaz-oglasa novi-oglasi))
-      (log/info "Poslat je imejl sa novim oglasima"))
-    (with-open [wrtr (io/writer put-do-seta-svih-oglasa-stanova-za-izdavanje)]
-      (.write wrtr ^String (str (into set-svih-oglasa (map :hes novi-oglasi)))))))
+(defonce ^:private zakazivac (atom nil))
 
-(defn -main [& _args]
-  ;; poceo je da vraca duplikat oglase od kad sam uveo automatsko stranicenje. ne znam zasto
-  (proveri-oglase-sa-skladistem-kuce)
-  (proveri-oglase-sa-skladistem-vikendice)
-  ;;(proveri-oglase-sa-skladistem-stanovi-izdavanje)
-  (proveri-oglase-sa-skladistem-stanovi)
-  (log/info "Uspešno proverio sve oglase"))
+(defn pokreni-radnika! [interval-minuta]
+  (when-not @zakazivac
+    (let [executor (Executors/newSingleThreadScheduledExecutor)]
+      (reset! zakazivac executor)
+      (.scheduleWithFixedDelay executor
+        ^Runnable izvrsi-ciklus-skrejpovanja!
+        0
+        interval-minuta
+        TimeUnit/MINUTES)
+      (log/info "Pozadinski radnik pokrenut (interval:" interval-minuta "minuta)."))))

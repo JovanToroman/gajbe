@@ -1,84 +1,31 @@
 (ns nekretninice.urlovi)
 
-(def bazni-urlovi
-  {:KP          "https://kupujemprodajem.com"
-   :halo-oglasi "https://www.halooglasi.com/nekretnine"
+(def imena-domena
+  {:KP          "https://www.kupujemprodajem.com"
+   :halo-oglasi "https://www.halooglasi.com"
    :4zida       "https://www.4zida.rs"})
 
-;; gasim projekat jer ne mogu da mapiram mesto za KP posto je zasnovano na ID-jevima a i ovo mi se cini prilicno besmislenim.
-;; Bolje da pravim barkodove za Nigeriju.
-(def tip
-  {:stan      {:KP          ["/nekretnine-kupoprodaja/garsonjere/pretraga?categoryId=26&groupId=237"
-                             "/nekretnine-kupoprodaja/stanovi-jednosobni/pretraga?categoryId=26&groupId=229"
-                             "/nekretnine-kupoprodaja/stanovi-jednoiposobni/pretraga?categoryId=26&groupId=763"
-                             "/nekretnine-kupoprodaja/stanovi-dvosobni/pretraga?categoryId=26&groupId=235"
-                             "/nekretnine-kupoprodaja/stanovi-dvoiposobni/pretraga?categoryId=26&groupId=764"
-                             "/nekretnine-kupoprodaja/stanovi-trosobni/pretraga?categoryId=26&groupId=236"
-                             "/nekretnine-kupoprodaja/stanovi-cetvorosobni/pretraga?categoryId=26&groupId=2759"
-                             "/nekretnine-kupoprodaja/stanovi-petosobni-i-veci/pretraga?categoryId=26&groupId=2760"]
-               :halo-oglasi "/prodaja-stanova"
-               :4zida       "/prodaja-stanova"}
-   :kuca      {:KP          ["/nekretnine-kupoprodaja/kuce/pretraga?categoryId=26&groupId=230"
-                             "/nekretnine-kupoprodaja/vikendice/pretraga?categoryId=26&groupId=231"]
-               :halo-oglasi "/prodaja-kuca"
-               :4zida       "/prodaja-kuca"}
-   :zemljiste {:KP          "/nekretnine-kupoprodaja/placevi-i-zemljiste/pretraga?categoryId=26&groupId=232"
-               :halo-oglasi "/prodaja-zemljista"
-               :4zida       "/prodaja-placeva"}})
+;; Kanonski feed-ovi sortirani od najnovijih oglasa ka starijim.
+;; Svo filtriranje po ceni, kvadraturi i mikrolokaciji vrši se nad našom PostgreSQL bazom.
+(def izvori-za-skrejpovanje
+  [{:izvor  :KP :vrsta_ponude "prodaja" :tip_nekretnine "stan"
+    :urlovi ["https://www.kupujemprodajem.com/nekretnine-kupoprodaja/garsonjere/pretraga?categoryId=26&groupId=237&order=published-desc"
+             "https://www.kupujemprodajem.com/nekretnine-kupoprodaja/stanovi-jednosobni/pretraga?categoryId=26&groupId=229&order=published-desc"
+             "https://www.kupujemprodajem.com/nekretnine-kupoprodaja/stanovi-jednoiposobni/pretraga?categoryId=26&groupId=763&order=published-desc"
+             "https://www.kupujemprodajem.com/nekretnine-kupoprodaja/stanovi-dvosobni/pretraga?categoryId=26&groupId=235&order=published-desc"
+             "https://www.kupujemprodajem.com/nekretnine-kupoprodaja/stanovi-dvoiposobni/pretraga?categoryId=26&groupId=764&order=published-desc"
+             "https://www.kupujemprodajem.com/nekretnine-kupoprodaja/stanovi-trosobni/pretraga?categoryId=26&groupId=236&order=published-desc"
+             "https://www.kupujemprodajem.com/nekretnine-kupoprodaja/stanovi-cetvorosobni/pretraga?categoryId=26&groupId=2759&order=published-desc"]}
+   {:izvor  :KP :vrsta_ponude "prodaja" :tip_nekretnine "kuca"
+    :urlovi ["https://www.kupujemprodajem.com/nekretnine-kupoprodaja/kuce/pretraga?categoryId=26&groupId=230&order=published-desc"
+             "https://www.kupujemprodajem.com/nekretnine-kupoprodaja/vikendice/pretraga?categoryId=26&groupId=231&order=published-desc"]}
 
-(defn formiraj-urlove [{:nekretnina/keys [tip vrsta-ponude mesto cena-do kvadratura-od]}])
+   {:izvor  :halo-oglasi :vrsta_ponude "prodaja" :tip_nekretnine "stan"
+    :urlovi ["https://www.halooglasi.com/nekretnine/prodaja-stanova?sort=publish_date_dt%20desc"]}
+   {:izvor  :halo-oglasi :vrsta_ponude "prodaja" :tip_nekretnine "kuca"
+    :urlovi ["https://www.halooglasi.com/nekretnine/prodaja-kuca?sort=publish_date_dt%20desc"]}
 
-(def urlovi-oglasa-kuce
-  {:KP                ["https://kupujemprodajem.com/nekretnine-kupoprodaja/kuce/pretraga?categoryId=26&groupId=230&locationId=1&priceFrom=50000&priceTo=150000&currency=eur"
-                       "https://www.kupujemprodajem.com/nekretnine-kupoprodaja/placevi-i-zemljiste/pretraga?keywords=jajinci&categoryId=26&groupId=232&keywordsScope=description"
-                       "https://www.kupujemprodajem.com/nekretnine-kupoprodaja/placevi-i-zemljiste/pretraga?keywords=becmen&categoryId=26&groupId=232&keywordsScope=description"]
-   :halo-oglasi       ["https://www.halooglasi.com/nekretnine/prodaja-kuca/beograd?cena_d_from=50000&cena_d_to=150000&cena_d_unit=4&kvadratura_d_from=90&kvadratura_d_unit=1"
-                       "https://www.halooglasi.com/nekretnine/prodaja-zemljista/beograd-vozdovac-jajinci?cena_d_to=60000&cena_d_unit=4"
-                       "https://www.halooglasi.com/nekretnine/prodaja-zemljista/beograd-surcin-becmen?cena_d_to=60000&cena_d_unit=4"]
-   :beogradski-oglasi ["https://www.beogradskioglasi.com/oglasi/prodaja-nekretnina/?price_low=50000&price_high=150000&country=beograd&area=80&search_id=0"]
-   :4zida             ["https://www.4zida.rs/prodaja-kuca/beograd?skuplje_od=50000eur&jeftinije_od=151000eur&vece_od=80m2&mesto=stara-pazova"
-                       "https://www.4zida.rs/prodaja-placeva/becmen-surcin-opstina-beograd"
-                       "https://www.4zida.rs/prodaja-placeva/jajinci-vozdovac-opstina-beograd"]})
-
-(def urlovi-oglasa-stanovi
-  {:KP                ["https://kupujemprodajem.com/nekretnine-kupoprodaja/stanovi-dvoiposobni/pretraga?categoryId=26&groupId=764&locationId=112&priceFrom=50000&priceTo=120000&currency=eur&hasPrice=yes"
-                       "https://kupujemprodajem.com/nekretnine-kupoprodaja/stanovi-dvosobni/pretraga?categoryId=26&groupId=235&locationId=112&priceFrom=50000&priceTo=120000&currency=eur&hasPrice=yes"
-                       "https://kupujemprodajem.com/nekretnine-kupoprodaja/stanovi-jednoiposobni/pretraga?categoryId=26&groupId=763&locationId=112&priceFrom=50000&priceTo=120000&currency=eur&hasPrice=yes"
-                       "https://kupujemprodajem.com/nekretnine-kupoprodaja/stanovi-jednoiposobni/pretraga?categoryId=26&groupId=763&locationId=110&priceFrom=50000&priceTo=160000&currency=eur&hasPrice=yes"
-                       "https://kupujemprodajem.com/nekretnine-kupoprodaja/stanovi-dvosobni/pretraga?categoryId=26&groupId=235&locationId=110&priceFrom=50000&priceTo=160000&currency=eur&hasPrice=yes"
-                       "https://kupujemprodajem.com/nekretnine-kupoprodaja/stanovi-dvoiposobni/pretraga?categoryId=26&groupId=764&locationId=110&priceFrom=50000&priceTo=160000&currency=eur&hasPrice=yes"]
-   :halo-oglasi       ["https://www.halooglasi.com/nekretnine/prodaja-zemljista/beograd-rakovica-miljakovac"
-                       "https://www.halooglasi.com/nekretnine/prodaja-stanova/beograd-novi-beograd-blok-28?cena_d_to=160000&cena_d_unit=4"
-                       "https://www.halooglasi.com/nekretnine/prodaja-stanova/beograd-rakovica-miljakovac?cena_d_from=50000&cena_d_to=120000&cena_d_unit=4&kvadratura_d_from=40&kvadratura_d_unit=1&sprat_order_i_from=11&sprat_order_i_to=40&dodatno_id_ls=12000025"
-                       "https://www.halooglasi.com/nekretnine/prodaja-stanova/beograd-novi-beograd?cena_d_from=50000&cena_d_to=160000&cena_d_unit=4&kvadratura_d_from=40&kvadratura_d_unit=1&sprat_order_i_from=11&sprat_order_i_to=40&dodatno_id_ls=12000025"]
-   :beogradski-oglasi ["https://www.beogradskioglasi.com/oglasi/prodaja-nekretnina/?price_low=50000&price_high=135000&property_type_Stan=on&country=beograd&area=59&property_type=stan&region=rakovica&lokacija1=miljakovac"
-                       "https://www.beogradskioglasi.com/oglasi/prodaja-nekretnina/?price_low=50000&price_high=160000&property_type_Stan=on&country=beograd&area=59&property_type=stan&region=novi%20beograd"]
-   :4zida             ["https://www.4zida.rs/prodaja-stanova/blok-28-novi-beograd-beograd?jeftinije_od=160000eur"
-                       "https://www.4zida.rs/prodaja-stanova/miljakovac-rakovica-opstina-beograd?skuplje_od=50000eur&jeftinije_od=120000eur&vece_od=40m2"
-                       "https://www.4zida.rs/prodaja-stanova/novi-beograd-beograd?skuplje_od=50000eur&jeftinije_od=160000eur&vece_od=40m2"]})
-
-(def urlovi-oglasa-vikendice
-  {:KP                ["https://kupujemprodajem.com/nekretnine-kupoprodaja/kuce/pretraga?categoryId=26&groupId=230&locationId=1&priceFrom=5000&priceTo=49999&currency=eur"
-                       "https://kupujemprodajem.com/nekretnine-kupoprodaja/vikendice/pretraga?categoryId=26&groupId=231&locationId=1&priceFrom=5000&priceTo=49999&currency=eur"]
-   :halo-oglasi       ["https://www.halooglasi.com/nekretnine/prodaja-kuca/beograd?cena_d_from=10000&cena_d_to=50000&cena_d_unit=4&kvadratura_d_from=70&kvadratura_d_unit=1"]
-   :beogradski-oglasi ["https://www.beogradskioglasi.com/oglasi/prodaja-nekretnina/?price_low=10000&price_high=50000&country=beograd&area=80&search_id=0"]
-   :4zida             ["https://www.4zida.rs/prodaja-kuca/beograd?skuplje_od=10000eur&jeftinije_od=50000eur&vece_od=70m2&mesto=stara-pazova"]})
-
-(def urlovi-oglasa-stanova-za-izdavanje
-  {:KP                []
-   :halo-oglasi       ["https://www.halooglasi.com/nekretnine/izdavanje-stanova/beograd?cena_d_from=100&cena_d_to=500&cena_d_unit=4&oglasivac_nekretnine_id_l=387237&dodatno_id_ls=12000009"
-                       "https://www.halooglasi.com/nekretnine/izdavanje-kuca/beograd?cena_d_from=100&cena_d_to=500&cena_d_unit=4&dodatno_id_ls=12000009"]
-   :beogradski-oglasi []
-   :4zida             ["https://www.4zida.rs/izdavanje-stanova/beograd?skuplje_od=100eur&jeftinije_od=500eur&pet_friendly="
-                       "https://www.4zida.rs/izdavanje-kuca/beograd?skuplje_od=100eur&jeftinije_od=500eur&pet_friendly="]})
-
-(def urlovi-slovenija
-  {:nepremicnine ["https://www.nepremicnine.net/oglasi-prodaja/ljubljana-mesto/stanovanje/cena-od-49900-do-101000-eur/"
-                  "https://www.nepremicnine.net/oglasi-prodaja/ljubljana-okolica/stanovanje/cena-od-49900-do-101000-eur/"
-                  "https://www.nepremicnine.net/oglasi-prodaja/podravska/stanovanje/cena-od-49900-do-101000-eur/"]})
-
-(def imena-domena
-  {:KP          "https://kupujemprodajem.com"
-   :halo-oglasi "https://www.halooglasi.com"
-   :4zida       "https://www.4zida.rs"
-   :nepremicnine "https://www.nepremicnine.net"})
+   {:izvor  :4zida :vrsta_ponude "prodaja" :tip_nekretnine "stan"
+    :urlovi ["https://www.4zida.rs/prodaja-stanova?sortiranje=najnoviji"]}
+   {:izvor  :4zida :vrsta_ponude "prodaja" :tip_nekretnine "kuca"
+    :urlovi ["https://www.4zida.rs/prodaja-kuca?sortiranje=najnoviji"]}])

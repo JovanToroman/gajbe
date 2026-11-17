@@ -1,31 +1,23 @@
 (ns nekretninice.konfiguracija.glavno
-  (:require [applied-science.js-interop :as j]
+  (:require ["react-dom/client" :as rdom]
             [nekretninice.aplikacija.prikazi :as prikazi]
-            [nekretninice.konfiguracija.dogadjaji :as dogadjaji]
-            [nekretninice.konfiguracija.podesavanja :as podesavanja]
-            [nekretninice.konfiguracija.stilovi :as stilovi]
-            [re-frame.core :as re-frame :refer [dispatch-sync]]
-            [reagent.dom :as reagent-dom]
-            [taoensso.timbre :as timbre]))
+            [nekretninice.konfiguracija.dogadjaji]
+            [nekretninice.konfiguracija.pretplate]
+            [re-frame.core :as rf]
+            [reagent.core :as r]))
 
-(defn montiraj-koren []
-  (re-frame/clear-subscription-cache!)
-  (let [aplikacija (j/call js/document :getElementById "aplikacija")]
-    (reagent-dom/render (stilovi/provider {:main-view prikazi/glavno-podrucje}) aplikacija))
-  (timbre/info "Verzija aplikacije:" podesavanja/verzija))
+(defonce koren-atom (atom nil))
 
-(defn ^:after-load ponovo-iznedri
-  "Ponovo iznedri aplikaciju kada se figwheel učita"
-  []
-  (montiraj-koren))
+(defn ponovo-iznedri []
+  (rf/clear-subscription-cache!)
+  (when-let [el (.getElementById js/document "aplikacija")]
+    (when-not @koren-atom
+      (reset! koren-atom (rdom/createRoot el)))
+    (.render @koren-atom (r/as-element [prikazi/glavni-prikaz]))))
 
-(defn dev-mod []
-  (when podesavanja/debug?
-    (enable-console-print!)
-    (println "dev mod")))
+(defn ^:export iznedri []
+  (rf/dispatch-sync [:inicijalizuj-bazu])
+  (rf/dispatch [:dohvati-oglase])
+  (ponovo-iznedri))
 
-(defn ^:export pokreni []
-  (dispatch-sync [::dogadjaji/pokreni])
-  (dev-mod)
-  (montiraj-koren))
-
+(defonce pokretanje (iznedri))
