@@ -1,5 +1,33 @@
 (ns nekretninice.urlovi)
 
+(def bazni-urlovi
+  {:KP          "https://kupujemprodajem.com"
+   :halo-oglasi "https://www.halooglasi.com/nekretnine"
+   :4zida       "https://www.4zida.rs"})
+
+;; gasim projekat jer ne mogu da mapiram mesto za KP posto je zasnovano na ID-jevima a i ovo mi se cini prilicno besmislenim.
+;; Bolje da pravim barkodove za Nigeriju.
+(def tip
+  {:stan      {:KP          ["/nekretnine-kupoprodaja/garsonjere/pretraga?categoryId=26&groupId=237"
+                             "/nekretnine-kupoprodaja/stanovi-jednosobni/pretraga?categoryId=26&groupId=229"
+                             "/nekretnine-kupoprodaja/stanovi-jednoiposobni/pretraga?categoryId=26&groupId=763"
+                             "/nekretnine-kupoprodaja/stanovi-dvosobni/pretraga?categoryId=26&groupId=235"
+                             "/nekretnine-kupoprodaja/stanovi-dvoiposobni/pretraga?categoryId=26&groupId=764"
+                             "/nekretnine-kupoprodaja/stanovi-trosobni/pretraga?categoryId=26&groupId=236"
+                             "/nekretnine-kupoprodaja/stanovi-cetvorosobni/pretraga?categoryId=26&groupId=2759"
+                             "/nekretnine-kupoprodaja/stanovi-petosobni-i-veci/pretraga?categoryId=26&groupId=2760"]
+               :halo-oglasi "/prodaja-stanova"
+               :4zida       "/prodaja-stanova"}
+   :kuca      {:KP          ["/nekretnine-kupoprodaja/kuce/pretraga?categoryId=26&groupId=230"
+                             "/nekretnine-kupoprodaja/vikendice/pretraga?categoryId=26&groupId=231"]
+               :halo-oglasi "/prodaja-kuca"
+               :4zida       "/prodaja-kuca"}
+   :zemljiste {:KP          "/nekretnine-kupoprodaja/placevi-i-zemljiste/pretraga?categoryId=26&groupId=232"
+               :halo-oglasi "/prodaja-zemljista"
+               :4zida       "/prodaja-placeva"}})
+
+(defn formiraj-urlove [{:nekretnina/keys [tip vrsta-ponude mesto cena-do kvadratura-od]}])
+
 (def urlovi-oglasa-kuce
   {:KP                ["https://kupujemprodajem.com/nekretnine-kupoprodaja/kuce/pretraga?categoryId=26&groupId=230&locationId=1&priceFrom=50000&priceTo=150000&currency=eur"
                        "https://www.kupujemprodajem.com/nekretnine-kupoprodaja/placevi-i-zemljiste/pretraga?keywords=jajinci&categoryId=26&groupId=232&keywordsScope=description"
@@ -44,7 +72,13 @@
    :4zida             ["https://www.4zida.rs/izdavanje-stanova/beograd?skuplje_od=100eur&jeftinije_od=500eur&pet_friendly="
                        "https://www.4zida.rs/izdavanje-kuca/beograd?skuplje_od=100eur&jeftinije_od=500eur&pet_friendly="]})
 
+(def urlovi-slovenija
+  {:nepremicnine ["https://www.nepremicnine.net/oglasi-prodaja/ljubljana-mesto/stanovanje/cena-od-49900-do-101000-eur/"
+                  "https://www.nepremicnine.net/oglasi-prodaja/ljubljana-okolica/stanovanje/cena-od-49900-do-101000-eur/"
+                  "https://www.nepremicnine.net/oglasi-prodaja/podravska/stanovanje/cena-od-49900-do-101000-eur/"]})
+
 (def imena-domena
   {:KP          "https://kupujemprodajem.com"
    :halo-oglasi "https://www.halooglasi.com"
-   :4zida       "https://www.4zida.rs"})
+   :4zida       "https://www.4zida.rs"
+   :nepremicnine "https://www.nepremicnine.net"})

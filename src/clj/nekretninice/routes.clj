@@ -1,5 +1,5 @@
 (ns nekretninice.routes
-  (:require [nekretninice.handlers :as handlers]))
+  (:require [nekretninice.hendleri :as handlers]))
 
 (def routes
   ["/" {}

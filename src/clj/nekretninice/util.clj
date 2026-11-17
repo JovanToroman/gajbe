@@ -8,8 +8,7 @@
     {}
     args))
 
-(defn ^String md5
-  [object]
+(defn md5 ^String [object]
   (->> object
     str
     .getBytes

@@ -1,7 +1,7 @@
 (ns nekretninice.poslovi
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
-            [nekretninice.email :as imejl]
+            [nekretninice.imejl :as imejl]
             [nekretninice.prikazi :as prikazi]
             [nekretninice.rasclanjivaci :as rasclanjivaci]
             [nekretninice.util :as util]

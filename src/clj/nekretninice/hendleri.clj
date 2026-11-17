@@ -1,4 +1,4 @@
-(ns nekretninice.handlers
+(ns nekretninice.hendleri
   (:require [nekretninice.prikazi :as prikazi]
             [nekretninice.rasclanjivaci :as parsers]
             [ring.util.http-response :as r]))

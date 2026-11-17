@@ -195,21 +195,46 @@
           izvor       :4zida]
       (-m link-oglasa naslov opis cena link-fotografije mesto datum izvor))))
 
+(deftype ProcesorNepremicnine [urlovi imena-domena]
+  IzvuciOglase
+  (ustranici-urlove [_this broj-strana]
+    (mapcat (fn [url]
+              (conj
+                (map (fn [strana]
+                       (str url "/" strana "/"))
+                  (range 2 (inc broj-strana)))
+                url))
+      (:nepremicnine urlovi)))
+  (dohvati-stranicu [_this url]
+    (slurp url))
+  (izvuci-oglase [this]
+    (let [oglasi (mapcat (fn [url]
+                           (hs/select (hs/attr :itemtype #{"http://schema.org/Offer"})
+                             (h/as-hickory (h/parse (dohvati-stranicu this url)))))
+                   (ustranici-urlove this broj-strana))]
+      (map (partial obradi-oglas this) oglasi)))
+  (obradi-oglas [_this oglas]
+    #_(let [[{[naslov] :content}] (hs/select (hs/and (hs/class :desk:text-lg) (hs/tag :p)) oglas)
+            [{{link-oglasa :href} :attrs}] (hs/select (hs/and (hs/class :justify-between) (hs/class :gap-1)
+                                                        (hs/class :flex) (hs/tag :a)) oglas)
+            link-oglasa (str (:4zida imena-domena) link-oglasa)
+            [{[opis] :content}] (hs/select (hs/child (hs/and (hs/class :desk:block) (hs/class :desk:text-sm) (hs/tag :div))
+                                             (hs/tag :span)) oglas)
+            [{[cena] :content}] (hs/select (hs/and (hs/class :rounded-tl) (hs/tag :p)) oglas)
+            cena        (str/trim cena)
+            [{{link-fotografije :srcset} :attrs}] (hs/select (hs/child (hs/and (hs/class :relative) (hs/class :size-full)
+                                                                         (hs/class "bg-black/50")) (hs/tag :img)) oglas)
+            [{[mesto] :content}] (hs/select (hs/and (hs/class :line-clamp-2) (hs/class :desk:line-clamp-3)
+                                              (hs/class :!leading-tight)) oglas)
+            datum       (jt/instant)
+            izvor       :4zida]
+        (-m link-oglasa naslov opis cena link-fotografije mesto datum izvor))
+    oglas))
+
 (defn dohvati-oglase []
   (sort-by :datum jt/after?
     (mapcat izvuci-oglase
-      [(->ProcesorBeogradskiOglasi url/urlovi-oglasa-kuce url/imena-domena)
-       (->ProcesorHaloOglasi url/urlovi-oglasa-kuce url/imena-domena)
-       (->ProcesorKP url/urlovi-oglasa-kuce url/imena-domena)
-       (->Procesor4zida url/urlovi-oglasa-kuce url/imena-domena)])))
-
-(defn dohvati-oglase-stanova []
-  (sort-by :datum jt/after?
-    (mapcat izvuci-oglase
-      [(->ProcesorBeogradskiOglasi url/urlovi-oglasa-stanovi url/imena-domena)
-       (->ProcesorHaloOglasi url/urlovi-oglasa-stanovi url/imena-domena)
-       (->ProcesorKP url/urlovi-oglasa-stanovi url/imena-domena)
-       (->Procesor4zida url/urlovi-oglasa-stanovi url/imena-domena)])))
+      [(->ProcesorNepremicnine url/urlovi-slovenija url/imena-domena)])))
 
 (defn dohvati-oglase-vikendica []
   (sort-by :datum jt/after?

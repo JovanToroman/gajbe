@@ -1,26 +1,30 @@
-{:paths   ["src/clj" "src/cljs" "resursi"]
- :deps    {org.clojure/clojure                 {:mvn/version "1.12.0"}
-           org.clojure/clojurescript           {:mvn/version "1.11.132"}
+{:paths   ["src/clj" "src/cljs" "src/cljc" "resursi"]
+ :deps    {org.clojure/clojure                 {:mvn/version "1.12.6"}
+           org.clojure/clojurescript           {:mvn/version "1.12.145"}
 
-           ring/ring                           {:mvn/version "1.12.2"}
-           re-frame/re-frame                   {:mvn/version "1.4.2"}
-           reagent/reagent                     {:mvn/version "1.3.0"}
-           thheller/shadow-cljs                {:mvn/version "2.28.10"}
+           ring/ring                           {:mvn/version "1.15.6"}
+           re-frame/re-frame                   {:mvn/version "1.4.7"}
+           reagent/reagent                     {:mvn/version "2.0.1"}
+           thheller/shadow-cljs                {:mvn/version "3.5.14"}
            binaryage/devtools                  {:mvn/version "1.0.7"}
-           re-frisk/re-frisk                   {:mvn/version "1.6.0"}
-           metosin/reitit                      {:mvn/version "0.7.0"}
-           metosin/ring-http-response          {:mvn/version "0.9.4"}
+           re-frisk/re-frisk                   {:mvn/version "1.7.1"}
+           metosin/reitit                      {:mvn/version "0.11.0"}
+           metosin/ring-http-response          {:mvn/version "0.9.5"}
            applied-science/js-interop          {:mvn/version "0.4.2"}
 
-           funcool/cuerdas                     {:mvn/version "2023.11.09-407"}
-           com.taoensso/timbre                 {:mvn/version "5.2.1"}
-           org.clj-commons/hickory             {:mvn/version "0.7.3"}
-           hiccup/hiccup                       {:mvn/version "2.0.0-RC3"}
+           funcool/cuerdas                     {:mvn/version "2026.415"}
+           com.taoensso/timbre                 {:mvn/version "6.8.0"}
+           org.clj-commons/hickory             {:mvn/version "0.7.8"}
+           hiccup/hiccup                       {:mvn/version "2.0.0"}
            clojure.java-time/clojure.java-time {:mvn/version "1.4.3"}
-           com.draines/postal                  {:mvn/version "2.0.5"}}
+           com.draines/postal                  {:mvn/version "2.0.5"}
+           lambdaisland/fetch                  {:mvn/version "1.5.83"}
+           kitchen-async/kitchen-async         {:mvn/version "0.1.0-SNAPSHOT"}
+           cljs-http/cljs-http                 {:mvn/version "0.1.49"}
+           clj-http/clj-http                   {:mvn/version "3.13.1"}}
  :aliases {:build  {:extra-paths ["src/build"]
-                    :extra-deps  {io.github.clojure/tools.build {:git/tag "v0.9.6" :git/sha "8e78bcc"}
-                                  org.clj-commons/hickory       {:mvn/version "0.7.3"}}
+                    :extra-deps  {io.github.clojure/tools.build {:git/tag "v0.10.14" :git/sha "1176afd3"}
+                                  org.clj-commons/hickory       {:mvn/version "0.7.8"}}
                     :ns-default  uberjar}
            :dev    {:main-opts ["-m" "gajbe.poslovi"]}
            :worker {:main-opts ["-m" "gajbe.poslovi"]}}}
