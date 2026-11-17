@@ -129,7 +129,7 @@
           izvor       :halo-oglasi]
       (-m link-oglasa naslov cena link-fotografije mesto tip kvadratura broj-soba datum izvor))))
 
-(deftype ProcesorBeogradskiOglasi [urlovi imena-domena]
+#_(deftype ProcesorBeogradskiOglasi [urlovi imena-domena]
   IzvuciOglase
   (ustranici-urlove [_this broj-strana]
     (mapcat (fn [url]
@@ -195,7 +195,7 @@
           izvor       :4zida]
       (-m link-oglasa naslov opis cena link-fotografije mesto datum izvor))))
 
-(deftype ProcesorNepremicnine [urlovi imena-domena]
+#_(deftype ProcesorNepremicnine [urlovi imena-domena]
   IzvuciOglase
   (ustranici-urlove [_this broj-strana]
     (mapcat (fn [url]
@@ -231,29 +231,7 @@
         (-m link-oglasa naslov opis cena link-fotografije mesto datum izvor))
     oglas))
 
-(defn dohvati-oglase []
-  (sort-by :datum jt/after?
-    (mapcat izvuci-oglase
-      [(->ProcesorNepremicnine url/urlovi-slovenija url/imena-domena)])))
-
-(defn dohvati-oglase-vikendica []
-  (sort-by :datum jt/after?
-    (mapcat izvuci-oglase
-      [(->ProcesorBeogradskiOglasi url/urlovi-oglasa-vikendice url/imena-domena)
-       (->ProcesorHaloOglasi url/urlovi-oglasa-vikendice url/imena-domena)
-       (->ProcesorKP url/urlovi-oglasa-vikendice url/imena-domena)
-       (->Procesor4zida url/urlovi-oglasa-vikendice url/imena-domena)])))
-
-(defn dohvati-oglase-stanova-za-izdavanje []
-  (sort-by :datum jt/after?
-    (mapcat izvuci-oglase
-      [(->ProcesorBeogradskiOglasi url/urlovi-oglasa-stanova-za-izdavanje url/imena-domena)
-       (->ProcesorHaloOglasi url/urlovi-oglasa-stanova-za-izdavanje url/imena-domena)
-       (->ProcesorKP url/urlovi-oglasa-stanova-za-izdavanje url/imena-domena)
-       (->Procesor4zida url/urlovi-oglasa-stanova-za-izdavanje url/imena-domena)])))
-
 (comment
-  (count (dohvati-oglase))
   (slurp "https://www.4zida.rs/prodaja-kuca/beograd?skuplje_od=50000eur&jeftinije_od=151000eur&vece_od=80m2&mesto=stara-pazova")
   (ustranici-urlove (->ProcesorKP url/urlovi-oglasa-kuce url/imena-domena) 10)
   (let [xform  (comp
